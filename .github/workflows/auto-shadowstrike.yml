@@ -1,0 +1,16 @@
+name: Auto build Shadow Strike
+on:
+  push:
+    paths: ['games/shadowstrike/**']
+  workflow_dispatch:
+permissions:
+  actions: write
+  contents: read
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start Godot APK build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run godot-apk.yml -f slug=shadowstrike -f name="Shadow Strike"
