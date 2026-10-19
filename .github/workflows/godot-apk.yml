@@ -18,9 +18,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: {distribution: temurin, java-version: 17}
-      - uses: android-actions/setup-android@v3
       - name: حزم أندرويد
-        run: sdkmanager "platform-tools" "build-tools;34.0.0" "platforms;android-34" "cmake;3.10.2.4988404" "ndk;23.2.8568313"
+        run: |
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null
+          "$SDKM" "platform-tools" "build-tools;34.0.0" "platforms;android-34" "cmake;3.10.2.4988404" "ndk;23.2.8568313"
       - uses: chickensoft-games/setup-godot@v2
         with:
           version: ${{ inputs.godot }}
