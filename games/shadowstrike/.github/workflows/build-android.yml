@@ -1,0 +1,69 @@
+name: Build Shadow Strike APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main", "master" ]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: 17}
+      - name: Install Android SDK packages
+        run: |
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null
+          "$SDKM" "platform-tools" "platforms;android-34" "build-tools;34.0.0" "cmake;3.10.2.4988404" "ndk;23.2.8568313"
+      - name: Setup Godot and export templates
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.3.0
+          use-dotnet: false
+          include-templates: true
+      - name: Debug keystore
+        run: |
+          mkdir -p ~/.android
+          keytool -genkeypair -keystore ~/.android/debug.keystore -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+      - name: Godot editor settings for Android export
+        run: |
+          VER=$(godot --version | grep -oE '^[0-9]+\.[0-9]+' | head -1)
+          mkdir -p ~/.config/godot
+          printf '%s\n' '[gd_resource type="EditorSettings" format=3]' '' '[resource]' \
+            "export/android/android_sdk_path = \"$ANDROID_HOME\"" \
+            "export/android/java_sdk_path = \"$JAVA_HOME\"" \
+            "export/android/debug_keystore = \"$HOME/.android/debug.keystore\"" \
+            'export/android/debug_keystore_user = "androiddebugkey"' \
+            'export/android/debug_keystore_pass = "android"' > ~/.config/godot/editor_settings-$VER.tres
+      - name: Enable ETC2/ASTC texture compression
+        run: |
+          python3 - <<'PY'
+          import re
+          p = 'project.godot'
+          s = open(p, encoding='utf-8').read()
+          if 'import_etc2_astc' not in s:
+              line = 'textures/vram_compression/import_etc2_astc=true'
+              if re.search(r'^\[rendering\]\s*$', s, re.M):
+                  s = re.sub(r'^\[rendering\]\s*$', '[rendering]\n\n' + line, s, count=1, flags=re.M)
+              else:
+                  s = s.rstrip('\n') + '\n\n[rendering]\n\n' + line + '\n'
+              open(p, 'w', encoding='utf-8').write(s)
+          PY
+      - name: Import project
+        run: godot --headless --path . --import || true
+      - name: Export Android APK
+        run: |
+          mkdir -p build
+          godot --headless --path . --export-debug Android build/ShadowStrikeLastZone.apk
+          test -f build/ShadowStrikeLastZone.apk
+          ls -la build
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShadowStrikeLastZone-APK
+          path: build/ShadowStrikeLastZone.apk
+          if-no-files-found: error
+          retention-days: 14
